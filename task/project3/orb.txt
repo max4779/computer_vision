@@ -1,0 +1,71 @@
+#include "opencv.hpp"
+#include <iostream>
+
+using namespace std;
+using namespace cv;
+
+
+int main() {
+	Mat query, image, descriptors1, descriptors2;
+	Ptr<ORB> orbF = ORB::create(1000);
+	vector<KeyPoint> keypoints1, keypoints2;
+	vector< DMatch > higherMatches;
+	BFMatcher matcher(NORM_HAMMING);
+	Mat imgMatches;
+	int i, k = 2, count = 0, max = 0;
+	float nndr;
+	string queryname;
+	vector<String> images;
+	cout << "Enter query image name: ";
+	cin >> queryname;
+	queryname = "pro3_query/" + queryname;
+	query = imread(queryname);
+
+	if (query.empty()) {
+		cout << "No file!";
+		return -1;
+	}
+
+	glob("pro3_DB/", images, false);
+	cout << "Sample Image Load Size : " << images.size() << endl;
+
+	resize(query, query, Size(640, 480));
+
+	orbF->detectAndCompute(query, noArray(), keypoints1, descriptors1);
+
+	for (int j = 0; j < images.size(); j++) {
+		vector< vector< DMatch> > matches;
+		vector< DMatch > goodMatches;
+		count++;
+		image = imread(images[j]);
+		resize(image, image, Size(640, 480));
+
+		orbF->detectAndCompute(image, noArray(), keypoints2, descriptors2);
+		matcher.knnMatch(descriptors1, descriptors2, matches, k);
+
+		nndr = 0.6f;
+		for (i = 0; i < matches.size(); i++) {
+			if (matches.at(i).size() == 2 && matches.at(i).at(0).distance <= nndr * matches.at(i).at(1).distance) {
+				goodMatches.push_back(matches[i][0]);
+			}
+		}
+		if (goodMatches.size() > higherMatches.size()) {
+			max = j;
+			higherMatches = goodMatches;
+		}
+		if (j == images.size() - 1) {
+			image = imread(images[max]);
+			resize(image, image, Size(640, 480));
+		}
+
+		cout << "Image number " << images[j] << " Matching: " << goodMatches.size() << endl;
+	}
+
+
+	drawMatches(image, keypoints2, query, keypoints1, higherMatches, imgMatches, Scalar::all(-1), Scalar(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+	if (higherMatches.size() < 4) { cout << "Matching failed" << endl; return 0; }
+	else {
+		cout << "Match found! " << endl;
+	}
+	imshow("Query", query);
+	imshow("Best Matching", imgMatches);
